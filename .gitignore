@@ -1,0 +1,24 @@
+# Build directory
+build/
+bin/
+out/
+
+# Runtime logs
+logs/
+*.log
+
+# User configuration / local test data
+.config/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CMake user files
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt

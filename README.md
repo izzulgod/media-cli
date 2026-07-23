@@ -248,4 +248,4 @@ To implement a new provider (e.g., Spotify, SoundCloud):
 
 ## License
 
-- **License**: Distributed under the [MIT License](LICENSE).
+Distributed under the [MIT License](LICENSE).

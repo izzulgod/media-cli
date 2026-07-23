@@ -29,16 +29,22 @@ std::vector<MediaInfo> Application::search(const std::string& query, int limit) 
     return last_results_;
 }
 
-bool Application::playMedia(const MediaInfo& media) {
-    if (!backend_ || !player_) {
-        LOG_ERROR("Backend or Player not initialized!");
+std::string Application::getStreamUrl(const MediaInfo& media) {
+    if (!backend_) {
+        LOG_ERROR("Backend not initialized!");
+        return media.url;
+    }
+    LOG_INFO("Fetching stream URL for media: {}", media.title);
+    return backend_->getStreamUrl(media, config_.getVideoQuality());
+}
+
+bool Application::playStreamUrl(const MediaInfo& media, const std::string& streamUrl) {
+    if (!player_) {
+        LOG_ERROR("Player not initialized!");
         return false;
     }
-
-    LOG_INFO("Fetching stream URL for media: {}", media.title);
-    std::string streamUrl = backend_->getStreamUrl(media, config_.getVideoQuality());
     if (streamUrl.empty()) {
-        LOG_ERROR("Could not get stream URL for media: {}", media.title);
+        LOG_ERROR("Empty stream URL for media: {}", media.title);
         return false;
     }
 
@@ -47,6 +53,11 @@ bool Application::playMedia(const MediaInfo& media) {
 
     player_->play(streamUrl, media.title, config_.getVideoQuality());
     return true;
+}
+
+bool Application::playMedia(const MediaInfo& media) {
+    std::string streamUrl = getStreamUrl(media);
+    return playStreamUrl(media, streamUrl);
 }
 
 bool Application::downloadMedia(const MediaInfo& media) {

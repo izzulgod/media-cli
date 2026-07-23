@@ -13,25 +13,44 @@ ResultsView::ResultsView(std::function<void(const MediaInfo&)> onSelect, std::fu
     };
 
     menu_component_ = Menu(&display_entries_, &selected_, option);
-    container_ = Container::Vertical({ menu_component_ });
+    
+    btn_back_ = Button(&back_label_, [onBack]() {
+        if (onBack) onBack();
+    });
+
+    container_ = Container::Vertical({
+        menu_component_,
+        btn_back_
+    });
 
     renderer_ = Renderer(container_, [this]() -> Element {
+        Element back_element = emptyElement();
+        if (!back_label_.empty()) {
+            back_element = btn_back_->Render() | color(Color::Red);
+        }
+
         if (items_.empty()) {
             return vbox(Elements{
                 applyHeader(title_header_),
                 text(""),
                 text(" ⚠️  No media found.") | color(Color::Yellow),
                 text(""),
-                text(" [ESC] Back to Main Menu") | dim | align_right,
+                back_element,
+                text(""),
+                text(" [ESC] Main Menu") | dim | align_right,
             }) | size(WIDTH, LESS_THAN, 140);
         }
 
         return vbox(Elements{
             applyHeader(title_header_ + fmt::format(" ({})", items_.size())),
             text(""),
-            menu_component_->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 22) | border | color(Color::Cyan),
+            menu_component_->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 20) | border | color(Color::Cyan),
             text(""),
-            text(" [↑/↓] Navigate   [Enter] Options   [ESC] Back to Main Menu") | dim | align_right,
+            hbox(Elements{
+                back_element,
+                filler(),
+                text(!back_label_.empty() ? " [↑/↓] Navigate Items   [Tab] Select Back Button   [Enter] Select" : " [↑/↓] Navigate Items   [Enter] Select") | dim,
+            }),
         }) | size(WIDTH, LESS_THAN, 140);
     });
 
@@ -44,9 +63,10 @@ ResultsView::ResultsView(std::function<void(const MediaInfo&)> onSelect, std::fu
     });
 }
 
-void ResultsView::setResults(const std::vector<MediaInfo>& items, const std::string& titleHeader) {
+void ResultsView::setResults(const std::vector<MediaInfo>& items, const std::string& titleHeader, const std::string& backLabel) {
     items_ = items;
     title_header_ = titleHeader;
+    back_label_ = backLabel;
     selected_ = 0;
     updateEntries();
 }

@@ -43,11 +43,15 @@ private:
     std::unique_ptr<AboutView> about_view_;
 
     Component main_container_;
+    Component modal_component_;
+    bool show_modal_{false};
+
     std::thread worker_thread_;
     std::thread ticker_thread_;
     std::atomic<bool> is_worker_active_{false};
 
     void setupViews();
+    void setupModal();
     void navigateTo(ViewState newState);
     void startAsyncSearch(const std::string& query);
     void startAsyncPlay(const MediaInfo& media);

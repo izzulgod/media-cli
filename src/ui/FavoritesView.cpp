@@ -6,7 +6,7 @@ FavoritesView::FavoritesView(std::function<void(const MediaInfo&)> onSelect, std
     : results_view_(onSelect, onBack) {}
 
 void FavoritesView::setFavorites(const std::vector<MediaInfo>& favorites) {
-    results_view_.setResults(favorites, "Favorite Media");
+    results_view_.setResults(favorites, "Favorite Media", "← Back");
 }
 
 Component FavoritesView::getComponent() {

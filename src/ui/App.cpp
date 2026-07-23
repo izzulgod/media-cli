@@ -6,6 +6,7 @@ namespace mediacli::ui {
 
 AppUI::AppUI(Application& app) : app_(app) {
     setupViews();
+    setupModal();
 }
 
 AppUI::~AppUI() {
@@ -16,6 +17,61 @@ AppUI::~AppUI() {
     if (worker_thread_.joinable()) {
         worker_thread_.join();
     }
+}
+
+void AppUI::setupModal() {
+    ButtonOption yes_opt;
+    yes_opt.transform = [](const EntryState& state) {
+        auto e = text("  Yes  ") | bold;
+        if (state.focused) {
+            return e | color(Color::Black) | bgcolor(Color::Green);
+        }
+        return e | color(Color::Green) | border;
+    };
+    auto btn_yes = Button("", [this]() {
+        show_modal_ = false;
+        navigateTo(ViewState::MainMenu);
+    }, yes_opt);
+
+    ButtonOption no_opt;
+    no_opt.transform = [](const EntryState& state) {
+        auto e = text("  No  ") | bold;
+        if (state.focused) {
+            return e | color(Color::Black) | bgcolor(Color::Red);
+        }
+        return e | color(Color::Red) | border;
+    };
+    auto btn_no = Button("", [this]() {
+        show_modal_ = false;
+    }, no_opt);
+
+    auto modal_container = Container::Horizontal({
+        btn_yes,
+        btn_no
+    });
+
+    modal_component_ = Renderer(modal_container, [btn_yes, btn_no]() -> Element {
+        return vbox(Elements{
+            text(" 󰎁 Confirm Navigation ") | bold | color(Color::Yellow) | center,
+            separator() | color(Color::Blue),
+            text(""),
+            text(" Return to Main Menu? ") | color(Color::White) | center,
+            text(""),
+            hbox(Elements{
+                btn_yes->Render(),
+                text("   "),
+                btn_no->Render(),
+            }) | center,
+        }) | border | color(Color::Cyan) | size(WIDTH, EQUAL, 42) | size(HEIGHT, EQUAL, 9) | clear_under | center;
+    });
+
+    modal_component_ = CatchEvent(modal_component_, [this](Event event) {
+        if (event == Event::Escape) {
+            show_modal_ = false;
+            return true;
+        }
+        return false;
+    });
 }
 
 void AppUI::setupViews() {
@@ -40,7 +96,7 @@ void AppUI::setupViews() {
         }
     });
 
-    // 2. Search Input View (Asynchronous non-blocking)
+    // 2. Search Input View (On-screen button directly navigates to Main Menu)
     search_view_ = std::make_unique<SearchView>(
         [this](const std::string& query) {
             startAsyncSearch(query);
@@ -63,7 +119,7 @@ void AppUI::setupViews() {
         }
     );
 
-    // 4. Video Action Menu (Asynchronous stream resolution)
+    // 4. Video Action Menu
     video_menu_ = std::make_unique<VideoMenu>(
         [this](VideoMenuAction action) {
             const auto& media = app_.getSelectedMedia();
@@ -95,7 +151,7 @@ void AppUI::setupViews() {
         }
     );
 
-    // 5. History View
+    // 5. History View (On-screen button directly navigates to Main Menu)
     history_view_ = std::make_unique<HistoryView>(
         [this](const MediaInfo& media) {
             app_.setSelectedMedia(media);
@@ -112,7 +168,7 @@ void AppUI::setupViews() {
         }
     );
 
-    // 6. Favorites View
+    // 6. Favorites View (On-screen button directly navigates to Main Menu)
     favorites_view_ = std::make_unique<FavoritesView>(
         [this](const MediaInfo& media) {
             app_.setSelectedMedia(media);
@@ -125,7 +181,7 @@ void AppUI::setupViews() {
         }
     );
 
-    // 7. Settings View
+    // 7. Settings View (On-screen button directly navigates to Main Menu)
     settings_view_ = std::make_unique<SettingsView>(
         app_.getConfig(),
         [this]() {
@@ -137,7 +193,7 @@ void AppUI::setupViews() {
         }
     );
 
-    // 8. About View
+    // 8. About View (On-screen button directly navigates to Main Menu)
     about_view_ = std::make_unique<AboutView>(
         [this]() {
             navigateTo(ViewState::MainMenu);
@@ -154,7 +210,7 @@ void AppUI::startAsyncSearch(const std::string& query) {
     is_worker_active_ = true;
     search_view_->setSearching(true, query);
 
-    // 1. Ticker thread for smooth spinner animation
+    // 1. Ticker thread for smooth spinner animation inside FTXUI TUI
     ticker_thread_ = std::thread([this]() {
         while (is_worker_active_) {
             std::this_thread::sleep_for(std::chrono::milliseconds(80));
@@ -186,7 +242,7 @@ void AppUI::startAsyncPlay(const MediaInfo& media) {
     is_worker_active_ = true;
     video_menu_->setLoading(true, "Fetching stream URL with yt-dlp...");
 
-    // 1. Ticker thread for smooth spinner animation
+    // 1. Ticker thread for smooth spinner animation inside FTXUI TUI
     ticker_thread_ = std::thread([this]() {
         while (is_worker_active_) {
             std::this_thread::sleep_for(std::chrono::milliseconds(80));
@@ -196,16 +252,17 @@ void AppUI::startAsyncPlay(const MediaInfo& media) {
         }
     });
 
-    // 2. Worker thread for resolving stream URL
+    // 2. Worker thread resolves getStreamUrl in the background while TUI spinner animates!
     worker_thread_ = std::thread([this, media]() {
         LOG_INFO("Fetching stream URL asynchronously for: {}", media.title);
-        // Execute playMedia in restored IO once stream URL is ready
+        std::string streamUrl = app_.getStreamUrl(media);
         is_worker_active_ = false;
 
-        screen_.Post([this, media]() {
+        // 3. Post to main thread: ONLY invoke WithRestoredIO when ready to open mpv player!
+        screen_.Post([this, media, streamUrl]() {
             video_menu_->setLoading(false);
-            screen_.WithRestoredIO([this, &media]() {
-                app_.playMedia(media);
+            screen_.WithRestoredIO([this, &media, &streamUrl]() {
+                app_.playStreamUrl(media, streamUrl);
             })();
         });
     });
@@ -231,18 +288,19 @@ void AppUI::run() {
         reinterpret_cast<int*>(&current_state_)
     );
 
-    // Global ESC key fallback handler ensuring ESC returns to Main Menu from any screen
+    // Global physical ESC key interceptor bringing up the confirmation modal dialog
     auto root_component = CatchEvent(tab_container, [this](Event event) {
         if (event == Event::Escape) {
             if (current_state_ != ViewState::MainMenu && !is_worker_active_) {
-                navigateTo(ViewState::MainMenu);
+                show_modal_ = true;
                 return true;
             }
         }
         return false;
     });
 
-    screen_.Loop(root_component);
+    auto final_component = Modal(root_component, modal_component_, &show_modal_);
+    screen_.Loop(final_component);
 }
 
 } // namespace mediacli::ui

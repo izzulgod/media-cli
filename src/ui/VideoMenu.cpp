@@ -45,7 +45,7 @@ VideoMenu::VideoMenu(std::function<void(VideoMenuAction)> onAction) {
             loading_status,
             menu_component_->Render() | border | color(is_loading_ ? Color::GrayDark : Color::Cyan),
             text(""),
-            text(" [Enter] Select Action   [ESC] Back") | dim | align_right,
+            text(" [↑/↓] Navigate   [Enter] Select Action   [ESC] Main Menu") | dim | align_right,
         }) | size(WIDTH, EQUAL, 84);
 
         return vbox(Elements{ content_box | center });

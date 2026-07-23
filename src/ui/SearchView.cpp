@@ -25,7 +25,7 @@ SearchView::SearchView(std::function<void(const std::string&)> onSearch, std::fu
         }
     });
 
-    auto btn_back = Button(" ← Back ", [this, onBack]() {
+    auto btn_back = Button(" ← Main Menu ", [this, onBack]() {
         if (!is_searching_ && onBack) onBack();
     });
 
@@ -59,7 +59,7 @@ SearchView::SearchView(std::function<void(const std::string&)> onSearch, std::fu
                 btn_back->Render() | color(is_searching_ ? Color::GrayDark : Color::Red),
             }),
             text(""),
-            text(" [Enter] Search   [ESC] Back to Menu") | dim | align_right,
+            text(" [Enter] Search   [ESC] Main Menu") | dim | align_right,
         }) | size(WIDTH, EQUAL, 84);
 
         return vbox(Elements{ box | center });

@@ -24,6 +24,8 @@ public:
 
     // Business Logic API used by UI
     std::vector<MediaInfo> search(const std::string& query, int limit = 20);
+    std::string getStreamUrl(const MediaInfo& media);
+    bool playStreamUrl(const MediaInfo& media, const std::string& streamUrl);
     bool playMedia(const MediaInfo& media);
     bool downloadMedia(const MediaInfo& media);
     bool openInBrowser(const MediaInfo& media);

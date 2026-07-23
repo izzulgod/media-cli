@@ -40,7 +40,7 @@ HistoryView::HistoryView(std::function<void(const MediaInfo&)> onSelect,
 }
 
 void HistoryView::setHistory(const std::vector<MediaInfo>& history) {
-    results_view_.setResults(history, "Watch History");
+    results_view_.setResults(history, "Watch History", "");
 }
 
 Component HistoryView::getComponent() {

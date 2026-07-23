@@ -80,7 +80,6 @@ std::vector<MediaInfo> YouTubeBackend::search(const std::string& query, int limi
 
     auto res = Process::execute(cmd.str(), false);
     if (res.exit_code != 0 && res.stdout_output.empty() && !cookie_browser_.empty()) {
-        // Fallback without cookies if cookie search failed
         std::ostringstream fallbackCmd;
         fallbackCmd << "yt-dlp \"ytsearch" << limit << ":" << query << "\" "
                     << "--flat-playlist --ignore-errors --dump-json --skip-download --quiet --no-playlist";
@@ -139,6 +138,18 @@ std::string YouTubeBackend::getStreamUrl(const MediaInfo& media, VideoQuality qu
         return media.url;
     }
 
+    auto extractUrls = [](const std::string& stdout_str) -> std::string {
+        std::istringstream iss(stdout_str);
+        std::string line;
+        std::string joined;
+        while (std::getline(iss, line)) {
+            if (line.empty()) continue;
+            if (!joined.empty()) joined += "\n";
+            joined += line;
+        }
+        return joined;
+    };
+
     std::ostringstream cmd;
     cmd << "yt-dlp " << getCookieArgs()
         << buildFormatFlag(quality) << " "
@@ -146,11 +157,8 @@ std::string YouTubeBackend::getStreamUrl(const MediaInfo& media, VideoQuality qu
 
     auto res = Process::execute(cmd.str(), false);
     if (res.exit_code == 0 && !res.stdout_output.empty()) {
-        std::istringstream iss(res.stdout_output);
-        std::string first_url;
-        if (std::getline(iss, first_url) && !first_url.empty()) {
-            return first_url;
-        }
+        std::string urls = extractUrls(res.stdout_output);
+        if (!urls.empty()) return urls;
     }
 
     // Fallback without cookies if cookie extraction failed
@@ -161,15 +169,12 @@ std::string YouTubeBackend::getStreamUrl(const MediaInfo& media, VideoQuality qu
                     << "-g \"" << media.url << "\"";
         auto fallbackRes = Process::execute(fallbackCmd.str(), false);
         if (fallbackRes.exit_code == 0 && !fallbackRes.stdout_output.empty()) {
-            std::istringstream iss(fallbackRes.stdout_output);
-            std::string first_url;
-            if (std::getline(iss, first_url) && !first_url.empty()) {
-                return first_url;
-            }
+            std::string urls = extractUrls(fallbackRes.stdout_output);
+            if (!urls.empty()) return urls;
         }
     }
 
-    LOG_WARN("Failed to fetch stream URL using yt-dlp, falling back to direct URL");
+    LOG_WARN("Failed to fetch stream URL using yt-dlp, falling back to direct webpage URL");
     return media.url;
 }
 
@@ -185,7 +190,6 @@ bool YouTubeBackend::download(const MediaInfo& media, const std::string& downloa
 
     std::string outTemplate = (expPath / "%(title)s.%(ext)s").string();
 
-    // 1. Try downloading with cookies if configured
     std::ostringstream cmd;
     cmd << "yt-dlp " << getCookieArgs()
         << buildFormatFlag(quality) << " "
@@ -196,7 +200,6 @@ bool YouTubeBackend::download(const MediaInfo& media, const std::string& downloa
     LOG_INFO("Downloading media '{}' to {}", media.title, expPath.string());
     int res = Process::runInteractive(cmd.str());
 
-    // 2. If cookie download failed (e.g. format error / expired cookies), retry without cookies
     if (res != 0 && !cookie_browser_.empty()) {
         LOG_WARN("Download with cookies failed. Retrying without cookies...");
         std::ostringstream fallbackCmd;
